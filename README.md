@@ -1,6 +1,6 @@
-# Anvogue Backend API
+# Avallonya  Backend API
 
-This is the backend API for the Anvogue e-commerce application. It provides authentication endpoints for user registration and login.
+This is the backend API for the Avallonya e-commerce application.
 
 ## Technologies Used
 
@@ -31,7 +31,7 @@ This is the backend API for the Anvogue e-commerce application. It provides auth
 4. Create a `.env` file in the root directory with the following variables:
    ```
    PORT=5000
-   MONGODB_URI=mongodb://localhost:27017/anvogue
+   MONGODB_URI=mongodb://localhost:27017/avallonya
    JWT_SECRET=your_jwt_secret_key
    JWT_EXPIRE=30d
 
@@ -40,8 +40,8 @@ This is the backend API for the Anvogue e-commerce application. It provides auth
    SMTP_PORT=587
    SMTP_EMAIL=your_email@gmail.com
    SMTP_PASSWORD=your_app_password
-   FROM_EMAIL=noreply@anvogue.com
-   FROM_NAME=Anvogue
+   FROM_EMAIL=noreply@avallonya.com
+   FROM_NAME=avallonya
 
    # Frontend URL for password reset
    FRONTEND_URL=http://localhost:3000

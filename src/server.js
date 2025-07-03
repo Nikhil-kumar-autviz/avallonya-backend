@@ -9,6 +9,7 @@ const router = require("./routes/router");
 const app = express();
 const webhookRouter=require("./routes/webhookRoutes")
 const PORT = process.env.PORT || 4000;
+app.use(express.static(path.join(__dirname, 'public')));
 try {
   app.use("/api-docs", swagger.serve, swagger.setup);
 } catch (error) {
