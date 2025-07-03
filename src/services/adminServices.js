@@ -86,7 +86,7 @@ const orderConfirmationEmail = (orderData) => {
         <tr>
           <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total:</strong></td>
           <td style="padding: 10px; text-align: left;">${
-            orderData.totalAmount
+            orderData.totalAmount?.toFixed(2)
           } ${orderData.currency}</td>
         </tr>
       </tfoot>
