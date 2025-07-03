@@ -11,7 +11,7 @@ const webhookRouter=require("./routes/webhookRoutes")
 const PORT = process.env.PORT || 4000;
 const path=require("path")
 app.use(express.static(path.join(__dirname, '../public')));
-console.log(__dirname,path.join(__dirname, '../public'))
+
 try {
   app.use("/api-docs", swagger.serve, swagger.setup);
 } catch (error) {
