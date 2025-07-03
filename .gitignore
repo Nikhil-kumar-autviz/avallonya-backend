@@ -1,0 +1,56 @@
+# Node modules
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependency directories
+jspm_packages/
+
+# Environment variables
+.env
+.env.test
+.env.production
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Optional npm cache directory
+.npm
+
+# Build output
+dist/
+build/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Coverage directory used by testing tools
+coverage/
+
+# VS Code settings
+.vscode/
+
+# PM2 process files
+pids
+*.pid
+*.seed
+
+# Debug files
+*.tgz
+
+# IDEs
+.idea/
+*.sublime*
+
+# Others
+*.local
+.vercel
+
+yarn.lock
+*.lock
