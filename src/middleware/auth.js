@@ -1,23 +1,23 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/userModel');
-
+const jwt = require("jsonwebtoken");
+const User = require("../models/userModel");
+const bcrypt=require("bcryptjs")
 // Protect routes
 exports.protect = async (req, res, next) => {
   let token;
 
   if (
     req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
+    req.headers.authorization.startsWith("Bearer")
   ) {
     // Set token from Bearer token in header
-    token = req.headers.authorization.split(' ')[1];
+    token = req.headers.authorization.split(" ")[1];
   }
 
   // Make sure token exists
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: 'Not authorized to access this route'
+      message: "Not authorized to access this route",
     });
   }
 
@@ -30,7 +30,7 @@ exports.protect = async (req, res, next) => {
   } catch (err) {
     return res.status(401).json({
       success: false,
-      message: 'Not authorized to access this route'
+      message: "Not authorized to access this route",
     });
   }
 };
@@ -41,20 +41,26 @@ exports.authorize = (...roles) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: `User role ${req.user.role} is not authorized to access this route`
+        message: `User role ${req.user.role} is not authorized to access this route`,
       });
     }
     next();
   };
 };
 
-exports.isAdmin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
-    next();
-  } else {
-    res.status(403).json({
-      success: false,
-      message: 'Not authorized as admin'
-    });
+exports.isAdmin = async (req, res, next) => {
+  const hashedToken = req.headers["x-token-hash"];
+
+  if (!hashedToken) {
+    return res.status(401).json({ error: "Missing token hash" });
   }
+
+
+  const isValid = await bcrypt.compare(process.env.QOGITA_EMAIL, hashedToken);
+  if (!isValid) {
+    return res.status(403).json({ error: "Invalid token" });
+  }
+
+  req.isAdmin = true;
+  next();
 };
