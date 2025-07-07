@@ -237,19 +237,44 @@ async function completeOrder(apiHeaders) {
 }
 
 async function updateOrderInDatabase(orderId, orderData) {
-  const newOrder = await Order.findByIdAndUpdate(
-    orderId,
-    {
-      qogitaOrderId: orderData.qid,
+  try {
+    if (!orderId) {
+      throw new Error("orderId is required");
+    }
+
+    // Build the update payload dynamically
+    const updatePayload = {
       updatedAt: new Date(),
       status: "accepted",
-      qogitaOrderData: orderData,
-    },
-    { new: true }
-  );
-  orderConfirmationEmail(newOrder);
-  return newOrder;
+    };
+
+    if (orderData?.qid) {
+      updatePayload.qogitaOrderId = orderData.qid;
+    }
+
+    if (orderData) {
+      updatePayload.qogitaOrderData = orderData;
+    }
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      orderId,
+      { $set: updatePayload },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      throw new Error("Order not found or update failed");
+    }
+
+    await orderConfirmationEmail(updatedOrder);
+    return updatedOrder;
+  } catch (error) {
+    console.error("Error updating order:", error.message);
+    throw error;
+  }
 }
+
+
 async function safeCartCleanup(needed, apiHeaders) {
   if (!needed) return;
 
@@ -320,15 +345,17 @@ async function processOrderCore(orderId) {
     await safeCartCleanup(itemsAddedToCart, apiHeaders);
     throw new Error("No valid shipping address found");
   }
-
-  await processCheckout(shippingAddress.qid, apiHeaders);
+if(shippingAddress?.qid){
+ await processCheckout(shippingAddress?.qid, apiHeaders);
+}
+ 
   const orderCompletion = await completeOrder(apiHeaders);
 
   // Update database
   await updateOrderInDatabase(orderId, orderCompletion);
 
   return {
-    qogitaOrderId: orderCompletion.qid,
+    qogitaOrderId: orderCompletion?.qid,
     orderSummary: results,
     orderCompletion,
   };

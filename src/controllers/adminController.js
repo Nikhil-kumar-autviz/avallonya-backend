@@ -200,6 +200,24 @@ exports.getAllUsersOrders = async (req, res) => {
   }
 };
 
+module.exports.getUserSingleOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req?.params?.id);
+    await order.populate("user");
+    res.status(200).json({
+      success: true,
+      data: order,
+      message: "Order retireived successfully",
+    });
+  } catch (error) {
+    console.error("Get single order of user message:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 exports.createCartAndPlaceOrder = async (req, res) => {
   try {
     const { orderId } = req.body;
@@ -232,32 +250,84 @@ exports.createCartAndPlaceOrder = async (req, res) => {
 module.exports.cancelCustomerOrderFromAdminPortal = async (req, res) => {
   try {
     const { orderId } = req.body;
+
     if (!orderId) {
       return res.status(400).json({ error: "Order ID is required" });
     }
+
     const updatedOrder = await Order.findOneAndUpdate(
       { _id: orderId, status: { $ne: "cancelled" } },
       {
-        status: "cancelled",
-        adminNotes: "Order cancelled by admin",
-        cancelledAt: new Date(),
+        $set: {
+          status: "cancelled",
+          adminNotes: "Order cancelled by admin",
+          cancelledAt: new Date(),
+        },
       },
       { new: true }
     );
 
     if (!updatedOrder) {
-      return res
-        .status(404)
-        .json({ message: "Order not found or already cancelled" });
+      return res.status(404).json({
+        error: "Order not found or already cancelled",
+      });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Order cancelled successfully",
       order: updatedOrder,
     });
+
   } catch (error) {
     console.error("Error cancelling order:", error);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message,
+    });
   }
 };
+
+
+module.exports.completeCustomerOrderFromAdminPortal = async (req, res) => {
+  try {
+    const orderId = req?.params?.orderId;
+
+    if (!orderId) {
+      return res.status(400).json({
+        error: "Order ID is required",
+      });
+    }
+
+    const updatedOrder = await Order.findOneAndUpdate(
+      { _id: orderId, status: { $ne: "completed" } },
+      {
+        $set: {
+          status: "completed",
+          adminNotes: "Order marked as completed by admin",
+          completedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      return res.status(404).json({
+        error: "Order not found or already completed",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Order marked as completed successfully",
+      order: updatedOrder,
+    });
+
+  } catch (error) {
+    console.error("Error completing order:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message,
+    });
+  }
+};
+
