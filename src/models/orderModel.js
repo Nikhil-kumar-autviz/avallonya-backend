@@ -138,6 +138,8 @@ const orderSchema = new mongoose.Schema(
         "delivered",
         "cancelled",
         "refunded",
+        "dispatched",
+        "completed"
       ],
       default: "pending",
     },
@@ -314,7 +316,7 @@ orderSchema.statics.getOrdersOfAllUser = async function (page = 1, limit = 10) {
       acc[curr._id] = curr.count;
       return acc;
     },
-    { accepted: 0, cancelled: 0, pending: 0, completed: 0, rejected: 0 }
+    { accepted: 0, cancelled: 0, pending: 0, completed: 0, rejected: 0,dispatched:0 }
   );
   
   return { allOrders, packageStatus };

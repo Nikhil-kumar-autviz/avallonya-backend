@@ -1,11 +1,15 @@
 const Category = require("../models/categoryModel");
 const Order = require("../models/orderModel");
-const {
-  getValidAccessToken,
-  makeAuthenticatedRequest,
-} = require("../services/qogitaService");
+const { makeAuthenticatedRequest } = require("../services/qogitaService");
 const { processOrderCore } = require("../services/adminServices");
 const logger = require("../utils/logger");
+const {
+  orderCancellationEmail,
+  orderDispatchEmail,
+  orderDeliveredEmail,
+} = require("../template/orders.template");
+const Admin = require("../models/adminModel");
+const qogitaTokenModel = require("../models/qogitaTokenModel");
 
 // exports.getAllCategoriesForAdmin = async (req, res) => {
 //   try {
@@ -53,6 +57,41 @@ const logger = require("../utils/logger");
 //     });
 //   }
 // };
+
+module.exports.adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Basic validation
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ error: "Email and password are required." });
+    }
+
+    // Authenticate admin
+    const admin = await Admin.findByCredentials(email, password);
+    if (!admin) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    // Generate access token
+    const token = admin.generateAuthToken();
+
+    // Fetch the most recent Qogita details for the admin
+    const qogitaAdminDetails = await qogitaTokenModel
+      .findOne({ "user.email": email })
+      .sort({ _id: -1 });
+    res.status(200).json({
+      user: qogitaAdminDetails?.user,
+      role: admin.role,
+      token,
+    });
+  } catch (error) {
+    console.error("Admin login error:", error);
+    res.status(500).json({ error: "Login failed. Please try again later." });
+  }
+};
 
 // Get categories from database with pagination
 exports.getCategoriesFromDBAdmin = async (req, res) => {
@@ -247,7 +286,7 @@ exports.createCartAndPlaceOrder = async (req, res) => {
   }
 };
 
-module.exports.cancelCustomerOrderFromAdminPortal = async (req, res) => {
+module.exports.cancelOrder = async (req, res) => {
   try {
     const { orderId } = req.body;
 
@@ -255,30 +294,32 @@ module.exports.cancelCustomerOrderFromAdminPortal = async (req, res) => {
       return res.status(400).json({ error: "Order ID is required" });
     }
 
-    const updatedOrder = await Order.findOneAndUpdate(
-      { _id: orderId, status: { $ne: "cancelled" } },
-      {
-        $set: {
-          status: "cancelled",
-          adminNotes: "Order cancelled by admin",
-          cancelledAt: new Date(),
-        },
-      },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
-      return res.status(404).json({
-        error: "Order not found or already cancelled",
-      });
+    const existingOrder = await Order.findById(orderId);
+    if (!existingOrder) {
+      return res.status(404).json({ error: "Order not found" });
     }
 
+    // Restrict cancellation if  accepted, dispatched, or completed
+    if (
+      ["accepted", "dispatched", "delivered"].includes(existingOrder.status)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Cannot cancel this order at its current stage." });
+    }
+
+    existingOrder.status = "cancelled";
+    existingOrder.cancelledAt = new Date();
+    existingOrder.adminNotes =
+      (existingOrder.adminNotes || "") + " Cancelled by admin.";
+
+    await existingOrder.save();
+    orderCancellationEmail(existingOrder);
     return res.status(200).json({
       success: true,
       message: "Order cancelled successfully",
-      order: updatedOrder,
+      order: existingOrder,
     });
-
   } catch (error) {
     console.error("Error cancelling order:", error);
     return res.status(500).json({
@@ -288,40 +329,33 @@ module.exports.cancelCustomerOrderFromAdminPortal = async (req, res) => {
   }
 };
 
-
-module.exports.completeCustomerOrderFromAdminPortal = async (req, res) => {
+module.exports.completeOrder = async (req, res) => {
   try {
     const orderId = req?.params?.orderId;
 
     if (!orderId) {
-      return res.status(400).json({
-        error: "Order ID is required",
-      });
+      return res.status(400).json({ error: "Order ID is required" });
     }
 
-    const updatedOrder = await Order.findOneAndUpdate(
-      { _id: orderId, status: { $ne: "completed" } },
-      {
-        $set: {
-          status: "completed",
-          adminNotes: "Order marked as completed by admin",
-          completedAt: new Date(),
-        },
-      },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
-      return res.status(404).json({
-        error: "Order not found or already completed",
-      });
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
     }
 
+    if (order.status === "delivered") {
+      return res.status(400).json({ error: "Order is completed." });
+    }
+
+    order.status = "delivered";
+    order.completedAt = new Date();
+    order.adminNotes = (order.adminNotes || "") + " Completed by admin.";
+
+    await order.save();
+    orderDeliveredEmail(order);
     return res.status(200).json({
       message: "Order marked as completed successfully",
-      order: updatedOrder,
+      order,
     });
-
   } catch (error) {
     console.error("Error completing order:", error);
     return res.status(500).json({
@@ -331,3 +365,43 @@ module.exports.completeCustomerOrderFromAdminPortal = async (req, res) => {
   }
 };
 
+module.exports.dispatchOrder = async (req, res) => {
+  try {
+    const orderId = req?.params?.orderId;
+    if (!orderId) {
+      return res.status(400).json({ error: "Order ID is required" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    if (order.status === "delivered") {
+      return res
+        .status(400)
+        .json({ error: "Cannot dispatch a completed order." });
+    }
+
+    if (order.status === "dispatched") {
+      return res.status(400).json({ error: "Order is  dispatched." });
+    }
+
+    order.status = "dispatched";
+    order.adminNotes = (order.adminNotes || "") + " Dispatched by admin.";
+    order.dispatchedAt = new Date();
+
+    await order.save();
+    orderDispatchEmail(order);
+    return res.status(200).json({
+      message: "Order marked as dispatched successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("Error dispatching order:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message,
+    });
+  }
+};

@@ -7,10 +7,10 @@ const logger = require("./utils/logger");
 const qogitaService = require("./services/qogitaService");
 const router = require("./routes/router");
 const app = express();
-const webhookRouter=require("./routes/webhookRoutes")
+const webhookRouter = require("./routes/webhookRoutes");
 const PORT = process.env.PORT || 4000;
-const path=require("path")
-app.use(express.static(path.join(__dirname, '../public')));
+const path = require("path");
+app.use(express.static(path.join(__dirname, "../public")));
 
 try {
   app.use("/api-docs", swagger.serve, swagger.setup);
@@ -46,7 +46,6 @@ app.get("/", (req, res) => {
 });
 
 // Swagger Docs
-
 
 // Global Error Handler
 app.use((err, req, res, next) => {
@@ -107,7 +106,9 @@ app.use((req, res) => {
     // Start server after everything is ready
     const server = app.listen(PORT, () => {
       logger.info(
-        `Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`
+        `Server running in ${
+          process.env.NODE_ENV || "development"
+        } mode on port ${PORT}`
       );
     });
 

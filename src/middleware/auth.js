@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
-const bcrypt=require("bcryptjs")
+const bcrypt = require("bcryptjs");
 // Protect routes
 exports.protect = async (req, res, next) => {
   let token;
@@ -49,18 +49,27 @@ exports.authorize = (...roles) => {
 };
 
 exports.isAdmin = async (req, res, next) => {
-  const hashedToken = req.headers["x-token-hash"];
+  try {
+    const authHeader = req.header("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res
+        .status(401)
+        .json({ error: "Access denied. No token provided." });
+    }
 
-  if (!hashedToken) {
-    return res.status(401).json({ error: "Missing token hash" });
+    const token = authHeader.replace("Bearer ", "").trim();
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Optional: Only allow access if role is admin
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ error: "Access denied. Admins only." });
+    }
+
+    req.role = decoded.role;
+     req.email = decoded.email;
+      next();
+  } catch (error) {
+    console.error("JWT Verification Failed:", error.message);
+    return res.status(401).json({ error: "Invalid or expired token" });
   }
-
-
-  const isValid = await bcrypt.compare(process.env.QOGITA_EMAIL, hashedToken);
-  if (!isValid) {
-    return res.status(403).json({ error: "Invalid token" });
-  }
-
-  req.isAdmin = true;
-  next();
 };
