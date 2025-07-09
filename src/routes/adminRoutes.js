@@ -3,6 +3,7 @@ const { isAdmin } = require("../middleware/auth");
 const { validateUpdateCategory } = require("../middleware/express-validators");
 const router = require("express").Router();
 router.post("/login", adminController.adminLogin);
+router.get("/get-all-users",adminController.getAllUsers)
 router.get(
   "/all-products-categories",isAdmin,
   adminController.getCategoriesFromDBAdmin

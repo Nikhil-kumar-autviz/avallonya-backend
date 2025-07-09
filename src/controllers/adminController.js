@@ -10,6 +10,7 @@ const {
 } = require("../template/orders.template");
 const Admin = require("../models/adminModel");
 const qogitaTokenModel = require("../models/qogitaTokenModel");
+const User = require("../models/userModel");
 
 // exports.getAllCategoriesForAdmin = async (req, res) => {
 //   try {
@@ -61,24 +62,16 @@ const qogitaTokenModel = require("../models/qogitaTokenModel");
 module.exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Basic validation
     if (!email || !password) {
       return res
         .status(400)
         .json({ error: "Email and password are required." });
     }
-
-    // Authenticate admin
     const admin = await Admin.findByCredentials(email, password);
     if (!admin) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
-
-    // Generate access token
     const token = admin.generateAuthToken();
-
-    // Fetch the most recent Qogita details for the admin
     const qogitaAdminDetails = await qogitaTokenModel
       .findOne({ "user.email": email })
       .sort({ _id: -1 });
@@ -90,6 +83,34 @@ module.exports.adminLogin = async (req, res) => {
   } catch (error) {
     console.error("Admin login error:", error);
     res.status(500).json({ error: "Login failed. Please try again later." });
+  }
+};
+
+exports.getAllUsers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;     
+    const limit = parseInt(req.query.limit) || 10; 
+    const skip = (page - 1) * limit;
+
+    const totalUsers = await User.countDocuments(); 
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    const users = await User.find({}, "-password -__v")
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      page,
+      limit,
+      totalUsers,
+      totalPages,
+      users,
+    });
+  } catch (err) {
+    
+    res.status(500).json({ success: false, message: "Server error",error:error?.message });
   }
 };
 

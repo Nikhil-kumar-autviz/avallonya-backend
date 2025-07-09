@@ -114,6 +114,7 @@ exports.register = async (req, res) => {
 
           return res.status(200).json({
             success: true,
+            email,
             message:
               "User already exists but not verified. A new verification email has been sent.",
           });
@@ -194,6 +195,7 @@ exports.register = async (req, res) => {
 
       res.status(201).json({
         success: true,
+        email,
         message:
           "User registered successfully. Please check your email to verify your account.",
       });
