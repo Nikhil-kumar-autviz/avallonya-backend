@@ -346,6 +346,9 @@ const createOrder = async (req, res) => {
     });
 
     await order.save();
+    await User.findByIdAndUpdate(req.user.id, {
+      $push: { orders: order._id },
+    });
 
     // Prepare line items for Stripe
     const line_items = orderItems.map((item) => ({
@@ -570,12 +573,10 @@ const getOrderById = async (req, res) => {
     //check session id exist checks strippe payment
     if (sessionId) {
       try {
-        const session = await stripe.checkout.sessions.retrieve(
-          sessionId,
-          {
-            expand: ["payment_intent"],
-          }
-        );
+        const session = await stripe.checkout.sessions.retrieve(sessionId, {
+          expand: ["payment_intent"],
+        });
+        
         if (session.metadata?.orderId && session.metadata.orderId !== orderId) {
           console.warn(
             `Order ID mismatch: ${session.metadata.orderId} vs ${orderId}`
@@ -590,7 +591,15 @@ const getOrderById = async (req, res) => {
           order.paymentDetails.paymentId =
             session.payment_intent?.id || order.paymentDetails?.paymentId;
           order.updatedAt = new Date();
+          if(order.status==="pending"){
+           order.status="processing" ;
+           console.log("ok it triggered")
+           processOrderCore(orderId)
+           
+
+          }
           await order.save();
+          
         }
       } catch (stripeError) {
         console.warn("Stripe session retrieval error:", stripeError.message);
@@ -810,8 +819,8 @@ const createOrderWithNewAddress = async (req, res) => {
     const {
       shippingAddress,
       paymentMethod,
-      shippingMethod = 'standard',
-      notes = '',
+      shippingMethod = "standard",
+      notes = "",
       saveAddress = false,
     } = req.body;
 
@@ -825,15 +834,21 @@ const createOrderWithNewAddress = async (req, res) => {
 
     // Validate shipping address structure
     const requiredAddressFields = [
-      'firstName', 'lastName', 'streetAddress', 
-      'townCity', 'state', 'zip', 'countryRegion', 
-      'phone', 'email'
+      "firstName",
+      "lastName",
+      "streetAddress",
+      "townCity",
+      "state",
+      "zip",
+      "countryRegion",
+      "phone",
+      "email",
     ];
     for (const field of requiredAddressFields) {
       if (!shippingAddress[field]) {
         return res.status(400).json({
           success: false,
-          message: `Shipping address is missing required field: ${field}`
+          message: `Shipping address is missing required field: ${field}`,
         });
       }
     }
@@ -841,9 +856,9 @@ const createOrderWithNewAddress = async (req, res) => {
     // Get user's cart
     const cart = await Cart.findOrCreateForUser(req.user.id);
     if (!cart || cart.items.length === 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: "Your cart is empty - cannot checkout" 
+        message: "Your cart is empty - cannot checkout",
       });
     }
 
@@ -854,10 +869,13 @@ const createOrderWithNewAddress = async (req, res) => {
     const invalidItems = [];
 
     for (const item of cart.items) {
-      if (!item.selectedSellerOffers || item.selectedSellerOffers.length === 0) {
+      if (
+        !item.selectedSellerOffers ||
+        item.selectedSellerOffers.length === 0
+      ) {
         invalidItems.push({
           product: item.name,
-          reason: "No seller offers available"
+          reason: "No seller offers available",
         });
         continue;
       }
@@ -877,7 +895,9 @@ const createOrderWithNewAddress = async (req, res) => {
           }
 
           if (offer.inventory < quantity) {
-            throw new Error(`Insufficient inventory (${offer.inventory} available)`);
+            throw new Error(
+              `Insufficient inventory (${offer.inventory} available)`
+            );
           }
 
           const offerSubtotal = price * quantity;
@@ -916,7 +936,7 @@ const createOrderWithNewAddress = async (req, res) => {
           invalidItems.push({
             product: item.name,
             seller: offer.seller,
-            reason: error.message
+            reason: error.message,
           });
         }
       }
@@ -926,18 +946,19 @@ const createOrderWithNewAddress = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "No valid items available for checkout",
-        invalidItems
+        invalidItems,
       });
     }
 
     // Calculate order totals
     const tax = parseFloat((subtotal * taxRate).toFixed(2));
-    const shippingCost = {
-      standard: 5,
-      express: 15,
-      overnight: 25
-    }[shippingMethod] || 5;
-    
+    const shippingCost =
+      {
+        standard: 5,
+        express: 15,
+        overnight: 25,
+      }[shippingMethod] || 5;
+
     const totalAmount = parseFloat((subtotal + tax + shippingCost).toFixed(2));
 
     // Create address snapshot
@@ -968,7 +989,7 @@ const createOrderWithNewAddress = async (req, res) => {
         addressSnapshot.addressId = savedAddress._id;
 
         await User.findByIdAndUpdate(req.user.id, {
-          $push: { addresses: savedAddress._id },
+          $push: { addresses: savedAddress._id, orders: order?._id },
         });
       } catch (error) {
         console.error("Failed to save address:", error);
@@ -1007,7 +1028,9 @@ const createOrderWithNewAddress = async (req, res) => {
     });
 
     await order.save();
-
+    await User.findByIdAndUpdate(req.user.id, {
+      $push: { orders: order?._id },
+    });
     // Prepare Stripe line items
     const line_items = orderItems.map((item) => ({
       price_data: {
@@ -1034,8 +1057,8 @@ const createOrderWithNewAddress = async (req, res) => {
       name: `${shippingAddress.firstName} ${shippingAddress.lastName}`,
       metadata: {
         userId: req.user.id,
-        orderId: order._id.toString()
-      }
+        orderId: order._id.toString(),
+      },
     });
 
     const session = await stripe.checkout.sessions.create({
@@ -1052,8 +1075,9 @@ const createOrderWithNewAddress = async (req, res) => {
         contact: shippingAddress.phone,
         totalAmount: totalAmount.toString(),
       },
-      shipping_options: [{
-        shipping_rate_data: {
+      shipping_options: [
+        {
+          shipping_rate_data: {
             type: "fixed_amount",
             fixed_amount: {
               amount: Math.round(order.shipping * 100 + order.tax * 100),
@@ -1065,7 +1089,8 @@ const createOrderWithNewAddress = async (req, res) => {
                 ? "Standard Shipping + Tax"
                 : "Shipping + Tax",
           },
-      }],
+        },
+      ],
       success_url: `${process.env.FRONTEND_URL}/order-success?orderId=${order._id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/cart`,
     });
@@ -1090,13 +1115,12 @@ const createOrderWithNewAddress = async (req, res) => {
       },
       invalidItems: invalidItems.length > 0 ? invalidItems : undefined,
     });
-
   } catch (error) {
     console.error("Order creation error:", error);
     res.status(500).json({
       success: false,
       message: "An error occurred while processing your order",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };

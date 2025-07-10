@@ -19,6 +19,7 @@ router.put(
 );
 router.get("/get-all-user-orders",isAdmin, adminController.getAllUsersOrders);
 router.get("/get-order/:id",isAdmin, adminController.getUserSingleOrder);
+// router.get("/get-user-full-details",isAdmin,)
 router.post(
   "/create-cart-and-checkout",isAdmin,
   adminController.createCartAndPlaceOrder

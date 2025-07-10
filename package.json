@@ -7,8 +7,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "ngrok":"ngrok http localhost:4000",
-    "vercel":"vercel --force --prod"
+    "ngrok": "ngrok http localhost:4000",
+    "vercel": "vercel --force --prod"
   },
   "keywords": [
     "nodejs",

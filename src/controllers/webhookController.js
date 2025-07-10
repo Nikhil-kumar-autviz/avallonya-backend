@@ -1,4 +1,5 @@
 
+const orderModel = require("../models/orderModel");
 const {
   handleCheckoutSessionCompleted,
   handleAsyncPaymentSucceeded,
@@ -16,7 +17,7 @@ const stripe = require("../utils/stripe");
 module.exports.stripePaymentStatusCheckController = async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
-
+console.log("webhook working")
   try {
     event = stripe.webhooks.constructEvent(
       req.body,
@@ -28,6 +29,7 @@ module.exports.stripePaymentStatusCheckController = async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
   const session = event.data.object;
+
   try{
   switch (event.type) {
     case "checkout.session.completed":

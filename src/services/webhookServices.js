@@ -1,6 +1,7 @@
 const CartModel = require("../models/cartModel");
 const OrderModel = require("../models/orderModel");
 const { processOrderCore } = require("./adminServices");
+
 module.exports.handleCheckoutSessionCompleted = async (session) => {
   const { orderNumber, orderId, userId } = session.metadata;
 
@@ -16,10 +17,7 @@ module.exports.handleCheckoutSessionCompleted = async (session) => {
     }
   );
   processOrderCore(orderId);
-  const cart = await CartModel.findOne({ user: userId });
-  if (cart) {
-    cart.clearCart();
-  }
+
 };
 module.exports.handleAsyncPaymentSucceeded = async (session) => {
   const orderId = session.metadata?.orderNumber;

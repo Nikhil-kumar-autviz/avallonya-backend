@@ -1,3 +1,4 @@
+const Cart = require("../models/cartModel");
 const Order = require("../models/orderModel");
 const sendEmail = require("../utils/sendEmail");
 const { qogitaApi, getValidAccessToken } = require("./qogitaService");
@@ -353,7 +354,10 @@ if(shippingAddress?.qid){
 
   // Update database
   await updateOrderInDatabase(orderId, orderCompletion);
-
+ const cart = await Cart.findOne({ user: order.user });
+             if (cart) {
+               cart.clearCart();
+             }
   return {
     qogitaOrderId: orderCompletion?.qid,
     orderSummary: results,
