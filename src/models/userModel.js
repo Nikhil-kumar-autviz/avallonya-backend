@@ -72,7 +72,8 @@ const userSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  wishlist: [String]
 });
 
 // Update updatedAt field on save

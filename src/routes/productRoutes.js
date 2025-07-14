@@ -6,7 +6,10 @@ const {
   getProductById,
   getProductByGtin,
   searchProductsByTerm,
+  getWishlist,
+  toggleWishlist,
 } = require('../controllers/productController');
+const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -28,5 +31,7 @@ router.get('/gtin/:gtin', getProductByGtin);
 // Get a single product (variant) by ID
 router.get('/:id', getProductById);
 
+router.post("/wishlist/toggle",protect ,toggleWishlist)
+router.get("/get-wishlist-products",protect ,getWishlist)
 
 module.exports = router;

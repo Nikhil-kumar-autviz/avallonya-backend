@@ -1,4 +1,5 @@
-const productService = require('../services/productService');
+const User = require("../models/userModel");
+const productService = require("../services/productService");
 
 /**
  * @swagger
@@ -43,14 +44,14 @@ exports.getBrands = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: brands
+      data: brands,
     });
   } catch (error) {
-    console.error('Product controller error:', error);
+    console.error("Product controller error:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching brands',
-      error: error.message
+      message: "Error fetching brands",
+      error: error.message,
     });
   }
 };
@@ -93,14 +94,14 @@ exports.getCategories = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: categories
+      data: categories,
     });
   } catch (error) {
-    console.error('Product controller error:', error);
+    console.error("Product controller error:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching categories',
-      error: error.message
+      message: "Error fetching categories",
+      error: error.message,
     });
   }
 };
@@ -169,7 +170,7 @@ exports.getCategories = async (req, res) => {
 exports.searchProducts = async (req, res) => {
   try {
     // Log the incoming query parameters
-    console.log('Search products query parameters:', req.query);
+    console.log("Search products query parameters:", req.query);
 
     // Call the product service to search for products
     const products = await productService.searchProducts(req.query);
@@ -177,25 +178,25 @@ exports.searchProducts = async (req, res) => {
     // Return the search results
     res.status(200).json({
       success: true,
-      data: products
+      data: products,
     });
   } catch (error) {
-    console.error('Product controller error:', error);
+    console.error("Product controller error:", error);
 
     // Handle specific error responses
     if (error.response) {
       return res.status(error.response.status || 500).json({
         success: false,
-        message: 'Error from Qogita API',
-        error: error.response.data || error.message
+        message: "Error from Qogita API",
+        error: error.response.data || error.message,
       });
     }
 
     // Handle general errors
     res.status(500).json({
       success: false,
-      message: 'Error searching products',
-      error: error.message
+      message: "Error searching products",
+      error: error.message,
     });
   }
 };
@@ -228,29 +229,29 @@ exports.getProductById = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      data: product
+      data: product,
     });
   } catch (error) {
-    console.error('Product controller error:', error);
+    console.error("Product controller error:", error);
 
     // Handle 404 errors from Qogita API
     if (error.response && error.response.status === 404) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found",
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Error fetching product',
-      error: error.message
+      message: "Error fetching product",
+      error: error.message,
     });
   }
 };
@@ -283,29 +284,29 @@ exports.getProductByGtin = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      data: product
+      data: product,
     });
   } catch (error) {
-    console.error('Product controller error:', error);
+    console.error("Product controller error:", error);
 
     // Handle 404 errors from Qogita API
     if (error.response && error.response.status === 404) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: "Product not found",
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Error fetching product by GTIN',
-      error: error.message
+      message: "Error fetching product by GTIN",
+      error: error.message,
     });
   }
 };
@@ -342,35 +343,83 @@ exports.getProductByGtin = async (req, res) => {
 exports.searchProductsByTerm = async (req, res) => {
   try {
     // Log the incoming search term and query parameters
-    console.log('Search term:', req.params.term);
-    console.log('Search query parameters:', req.query);
+    console.log("Search term:", req.params.term);
+    console.log("Search query parameters:", req.query);
 
     // Call the product service to search for products by term
-    const products = await productService.searchProductsByTerm(req.params.term, req.query);
+    const products = await productService.searchProductsByTerm(
+      req.params.term,
+      req.query
+    );
 
     // Return the search results
     res.status(200).json({
       success: true,
-      data: products
+      data: products,
     });
   } catch (error) {
-    console.error('Product controller error:', error);
+    console.error("Product controller error:", error);
 
     // Handle specific error responses
     if (error.response) {
       return res.status(error.response.status || 500).json({
         success: false,
-        message: 'Error from Qogita API',
-        error: error.response.data || error.message
+        message: "Error from Qogita API",
+        error: error.response.data || error.message,
       });
     }
 
     // Handle general errors
     res.status(500).json({
       success: false,
-      message: 'Error searching products by term',
-      error: error.message
+      message: "Error searching products by term",
+      error: error.message,
     });
   }
 };
 
+// POST /api/wishlist/toggle
+module.exports.toggleWishlist = async (req, res) => {
+  const { productId } = req.body;
+  const userId = req.user._id;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (!Array.isArray(user.wishlist)) {
+      user.wishlist = [];
+    }
+    const productIndex = user.wishlist.findIndex(id => id.toString() === productId);
+    let action = "";
+
+    if (productIndex > -1) {
+      user.wishlist.splice(productIndex, 1);
+      action = "removed";
+    } else {
+      user.wishlist.push(productId);
+      action = "added";
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Product ${action} from wishlist`,
+      wishlist: user.wishlist
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+module.exports.getWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user?._id).populate("wishlist");
+    if (!user) return res.status(404).send("User not found");
+
+    res.json({ wishlist: user.wishlist });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

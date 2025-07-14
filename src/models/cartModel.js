@@ -91,11 +91,14 @@ cartSchema.methods.updateItemQuantity = async function (itemId, seller, newQuant
   );
 
   if (offerIndex === -1) throw new Error("Seller offer not found for this item");
-
-  // Update quantity for specific seller offer
-  existingItem.selectedSellerOffers[offerIndex].quantityPurchase = newQuantityPurchase;
-
-  // Recalculate total quantity of item by summing all sellerOffers
+    const sellerOffer = existingItem.selectedSellerOffers[offerIndex];
+  if (newQuantityPurchase > sellerOffer.inventory) {
+    throw new Error(`Requested quantity (${newQuantityPurchase}) exceeds available inventory (${sellerOffer.inventory})`);
+  }
+  if (sellerOffer.unit && newQuantityPurchase % sellerOffer.unit !== 0) {
+    throw new Error(`Quantity must be in multiples of ${sellerOffer.unit}`);
+  }
+  sellerOffer.quantityPurchase = newQuantityPurchase;
   existingItem.quantity = existingItem.selectedSellerOffers.reduce(
     (acc, offer) => acc + (offer.quantityPurchase || 0),
     0
