@@ -196,6 +196,7 @@ exports.register = async (req, res) => {
       res.status(201).json({
         success: true,
         email,
+        _id:user?._id,
         message:
           "User registered successfully. Please check your email to verify your account.",
       });

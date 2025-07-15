@@ -29,6 +29,9 @@ const cartSchema = new mongoose.Schema(
   },
   { timestamps: true, versionKey: false }
 );
+cartSchema.index({ user: 1 });
+cartSchema.index({ items: 1 });
+
 
 // Pre-save hook to recalculate total items
 cartSchema.pre("save", async function (next) {

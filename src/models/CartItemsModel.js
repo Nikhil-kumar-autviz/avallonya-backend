@@ -60,7 +60,7 @@ const sellerOffersSchema = new mongoose.Schema({
 }, { _id: false,versionKey:false,strict:false }); 
 
 
-
+sellerOffersSchema.index({seller:1})
 
 const cartItemSchema = new mongoose.Schema(
   {
@@ -84,12 +84,12 @@ const cartItemSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    quantity: {
-      type: Number,
-      required: [true, "Quantity is required"],
-      min: [1, "Quantity must be at least 1"],
-      default: 1,
-    },
+    // quantity: {
+    //   type: Number,
+    //   required: [true, "Quantity is required"],
+    //   min: [1, "Quantity must be at least 1"],
+    //   default: 1,
+    // },
     slug: {
       type: String,
     },
@@ -109,6 +109,8 @@ const cartItemSchema = new mongoose.Schema(
   },
   { versionKey: false, timestamps: true }
 );
+cartItemSchema.index({ _id: 1 });
+cartItemSchema.index({gtin:1})
 
 const CartItem = mongoose.model("CartItem", cartItemSchema);
 module.exports = CartItem;

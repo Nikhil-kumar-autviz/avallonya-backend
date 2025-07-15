@@ -336,7 +336,7 @@ exports.getProductByGtin = async (gtin) => {
 
       // Store these values in the offer object
       offer.minQuantity = quantityNeeded;
-      offer.finalOrderValue = finalOrderTotal;
+      offer.finalOrderValue = Math.round(finalOrderTotal/5)*5;
 
       if (finalOfferPrice < minOfferPrice) {
         minOfferPrice = finalOfferPrice;

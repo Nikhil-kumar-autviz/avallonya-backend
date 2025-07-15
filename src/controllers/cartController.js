@@ -1,4 +1,5 @@
 const Cart = require("../models/cartModel");
+const productService = require("../services/productService");
 
 /**
  * @swagger
@@ -80,19 +81,35 @@ const getCart = async (req, res) => {
   try {
     const cart = await Cart.findOrCreateForUser(req.user.id);
     const flattenedItems = [];
-    for (const item of cart.items) {
+    for await (const item of cart.items) {
+      const getUpdatedProductData=await productService.getProductByGtin(item.gtin);
+      
       const { selectedSellerOffers, ...itemData } =
         item.toObject?.() || item;
       if (
         Array.isArray(selectedSellerOffers) &&
         selectedSellerOffers.length > 0
       ) {
-        for (const {quantityInCart,...offer} of selectedSellerOffers) {
-          flattenedItems.push({
-            ...itemData,
-            ...(offer.toObject?.() || offer),
-          });
-        }
+        for (const rawOffer of selectedSellerOffers) {
+  if (!rawOffer || typeof rawOffer !== 'object') continue;
+
+  const { quantityInCart, ...offer } = rawOffer;
+  const offerOptimised = offer.toObject?.() || offer;
+
+  const matchedOffer = getUpdatedProductData.offers?.find(
+    (o) => o.seller === offerOptimised.seller
+  );
+
+  if (!matchedOffer) continue;
+
+  const { quantityInCart: neglectThis, ...otherUpdatedOfferDetails } = matchedOffer;
+
+  flattenedItems.push({
+    ...itemData,
+    ...(offerOptimised),
+    ...otherUpdatedOfferDetails,
+  });
+}
       } else {
         flattenedItems.push(itemData);
       }
@@ -112,6 +129,8 @@ const getCart = async (req, res) => {
     });
   }
 };
+
+
 
 /**
  * @swagger
