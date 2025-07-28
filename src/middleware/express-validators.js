@@ -6,13 +6,13 @@ exports.validateUpdateCategory = [
   body("categoryName").notEmpty().isString().withMessage("categoryName must be a string"),
   body("priceCost")
     .optional()
-    .isFloat({ min: 1.25 })
-    .withMessage("priceCost must be a number >= 1.25"),
+    .isFloat({ min: 1 })
+    .withMessage("priceCost must be a number >= 1"),
 
   body("weightCost")
     .optional()
-    .isFloat({ min: 1.25 })
-    .withMessage("weightCost must be a number >= 1.25"),
+    .isFloat({ min: 1 })
+    .withMessage("weightCost must be a number >= 1"),
 
   (req, res, next) => {
     const errors = validationResult(req);

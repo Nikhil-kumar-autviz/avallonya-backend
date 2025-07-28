@@ -189,7 +189,7 @@ const createOrder = async (req, res) => {
   try {
     const { addressId, paymentMethod, shippingMethod, notes } = req.body;
     const cart = await Cart.findOrCreateForUser(req.user.id);
-
+    console.log("userid",req.user.id)
     if (cart.items.length === 0) {
       return res.status(400).json({ success: false, message: "Cart is empty" });
     }

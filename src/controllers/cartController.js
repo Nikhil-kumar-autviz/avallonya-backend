@@ -93,7 +93,7 @@ const getCart = async (req, res) => {
         for (const rawOffer of selectedSellerOffers) {
   if (!rawOffer || typeof rawOffer !== 'object') continue;
 
-  const { quantityInCart, ...offer } = rawOffer;
+  const { quantityInCart:_, ...offer } = rawOffer;
   const offerOptimised = offer.toObject?.() || offer;
 
   const matchedOffer = getUpdatedProductData.offers?.find(
@@ -130,7 +130,74 @@ const getCart = async (req, res) => {
   }
 };
 
+// const getCart = async (req, res) => {
+//   try {
+//     const cart = await Cart.findOrCreateForUser(req.user.id);
+//     const cartObject = cart?.toObject();
 
+//     // Process all items in parallel with Promise.all
+//     const flattenedItems = await Promise.all(
+//       cart.items.map(async (item) => {
+//         try {
+//           const getUpdatedProductData = await productService.getProductByGtin(item.gtin);
+//           const { selectedSellerOffers, ...itemData } = item.toObject?.() || item;
+
+//           if (!Array.isArray(selectedSellerOffers) || selectedSellerOffers.length === 0) {
+//             return itemData;
+//           }
+
+//           // Process all offers in parallel
+//           const offerItems = await Promise.all(
+//             selectedSellerOffers.map(async (rawOffer) => {
+//               if (!rawOffer || typeof rawOffer !== 'object') return null;
+
+//               const { quantityInCart, ...offer } = rawOffer;
+//               const offerOptimised = offer.toObject?.() || offer;
+
+//               const matchedOffer = getUpdatedProductData.offers?.find(
+//                 (o) => o.seller === offerOptimised.seller
+//               );
+
+//               if (!matchedOffer) return null;
+
+//               const { quantityInCart: neglectThis, ...otherUpdatedOfferDetails } = matchedOffer;
+
+//               return {
+//                 ...itemData,
+//                 ...offerOptimised,
+//                 ...otherUpdatedOfferDetails,
+//               };
+//             })
+//           );
+
+//           // Filter out null values and return either the processed offers or the base item
+//           return offerItems.filter(Boolean);
+//         } catch (error) {
+//           console.error(`Error processing item with GTIN ${item.gtin}:`, error);
+//           return item.toObject?.() || item; // Return the original item if processing fails
+//         }
+//       })
+//     );
+
+//     // Flatten the array (since some items might be arrays of offers)
+//     const finalItems = flattenedItems.flat();
+
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         ...cartObject,
+//         items: finalItems,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Get cart error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Error retrieving cart",
+//       error: error.message,
+//     });
+//   }
+// };
 
 /**
  * @swagger

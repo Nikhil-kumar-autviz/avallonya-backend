@@ -1,7 +1,13 @@
 const User = require("../models/userModel");
-const { validationResult } = require("express-validator");
+const { validationResult, body } = require("express-validator");
 const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
+const sgMail = require("@sendgrid/mail");
+const jwt = require("jsonwebtoken");
+const twilio = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// Set SendGrid API key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 /**
  * @swagger
@@ -51,176 +57,107 @@ const sendEmail = require("../utils/sendEmail");
 
 exports.register = async (req, res) => {
   try {
-    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      return res.status(400).json({
+        success: false,
+        errors: errors.array().map((err) => ({
+          field: err.param,
+          message: err.msg,
+        })),
+      });
     }
-
-    const name = req?.body?.name?.toLowerCase()?.trim();
-    const email = req?.body?.email?.toLowerCase()?.trim();
-    const password = req?.body?.password;
-
-    // Check if user already exists
+    const { name, email, password, phone, dialCode, companyInfo, businessDetails } = req.body;
     let user = await User.findOne({ email });
     if (user) {
-      // If user exists but is not verified, resend verification email
       if (!user.isVerified) {
-        // Generate verification token
-        const verificationToken = user.getVerificationToken();
-        await user.save({ validateBeforeSave: false });
-
-        // Create verification URL
-        const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
-
-        // Create email message
-        const message = `
-                <div style="padding: 20px 0;">
-          <p>Hello,</p>
-          <p>Thank you for registering with us! To complete your registration, please verify your email address by clicking the button below:</p>
-          
-          <div style="text-align: center;">
-            <a href="${verificationUrl}" style="display: inline-block;
-          padding: 12px 24px;
-          background-color: #4f46e5;
-          color: white;
-          text-decoration: none;
-          border-radius: 6px;
-          font-weight: 600;
-          margin: 20px 0;
-          text-align: center;
-">Verify Email Address</a>
-          </div>
-          
-          <p>If the button above doesn't work, copy and paste this link into your browser:</p>
-          <div style="word-break: break-all;
-          background-color: #f8f9fa;
-          padding: 10px;
-          border-radius: 4px;
-          margin: 15px 0;
-          font-family: monospace;">${verificationUrl}</div>
-          
-          <p>This verification link will expire in 24 hours.</p>
-          <p>If you didn't create an account with us, please ignore this email.</p>
-        </div>
-        `;
-
-        try {
-          await sendEmail({
-            email: user.email,
-            subject: "Email Verification",
-            message,
-          });
-
-          return res.status(200).json({
-            success: true,
-            email,
-            message:
-              "User already exists but not verified. A new verification email has been sent.",
-          });
-        } catch (err) {
-          console.error("Email error:", err);
-
-          // If email fails, reset the verification token
-          user.verificationToken = undefined;
-          user.verificationExpire = undefined;
-          await user.save({ validateBeforeSave: false });
-
-          return res.status(500).json({
-            success: false,
-            message: "Email could not be sent",
-          });
-        }
-      } else {
-        // If user exists and is already verified
-        return res.status(400).json({
-          success: false,
-          message: "User already exists",
+        await sendVerifications(user);
+        return res.status(200).json({
+          success: true,
+          data: { email, phone },
+          message: "Verification codes resent. Please check your email and phone.",
         });
       }
-    }
-
-    // Create user
-    user = await User.create({
-      name,
-      email,
-      password,
-    });
-
-    // Generate verification token
-    const verificationToken = user.getVerificationToken();
-    await user.save({ validateBeforeSave: false });
-
-    // Create verification URL
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
-
-    // Create email message
-  const message = `
-                <div style="padding: 20px 0;">
-          <p>Hello,</p>
-          <p>Thank you for registering with us! To complete your registration, please verify your email address by clicking the button below:</p>
-          
-          <div style="text-align: center;">
-            <a href="${verificationUrl}" style="display: inline-block;
-          padding: 12px 24px;
-          background-color: #4f46e5;
-          color: white;
-          text-decoration: none;
-          border-radius: 6px;
-          font-weight: 600;
-          margin: 20px 0;
-          text-align: center;
-">Verify Email Address</a>
-          </div>
-          
-          <p>If the button above doesn't work, copy and paste this link into your browser:</p>
-          <div style="word-break: break-all;
-          background-color: #f8f9fa;
-          padding: 10px;
-          border-radius: 4px;
-          margin: 15px 0;
-          font-family: monospace;">${verificationUrl}</div>
-          
-          <p>This verification link will expire in 24 hours.</p>
-          <p>If you didn't create an account with us, please ignore this email.</p>
-        </div>
-        `;
-
-    try {
-      await sendEmail({
-        email: user.email,
-        subject: "Email Verification",
-        message,
-      });
-
-      res.status(201).json({
-        success: true,
-        email,
-        _id:user?._id,
-        message:
-          "User registered successfully. Please check your email to verify your account.",
-      });
-    } catch (err) {
-      console.error("Email error:", err);
-
-      // If email fails, reset the verification token
-      user.verificationToken = undefined;
-      user.verificationExpire = undefined;
-      await user.save({ validateBeforeSave: false });
-
-      return res.status(500).json({
+      return res.status(400).json({
         success: false,
-        message: "Email could not be sent",
+        message: "User already exists with this email",
       });
     }
+    user = await User.create({
+      name: name.toLowerCase().trim(),
+      email: email.toLowerCase().trim(),
+      password,
+      phone: phone.replace(/[^\d+]/g, "").trim(),
+      dialCode: dialCode,
+      companyInfo: {
+        shippingCountry: companyInfo.shippingCountry,
+        vatNumber: companyInfo.vatNumber || "",
+        companyName: companyInfo.companyName,
+        countryOfRegistration: companyInfo.countryOfRegistration,
+        registrationNumber: companyInfo.registrationNumber,
+      },
+      businessDetails: {
+        salesChannels: businessDetails.salesChannels,
+        annualTurnover: businessDetails.annualTurnover,
+        employeeCount: businessDetails.employeeCount,
+        yearFounded: businessDetails.yearFounded,
+        businessStartDate: new Date(businessDetails.businessStartDate),
+      },
+    });
+    await sendVerifications(user);
+    res.status(201).json({
+      success: true,
+      data: {
+        _id: user._id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        dialCode: user.dialCode,
+        isEmailVerified: user.isVerified,
+        isPhoneVerified: user.isPhoneVerified,
+      },
+      message: "Registration successful. Please check your email and phone for verification codes.",
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Registration error:", error.message);
     res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: error?.message,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
+
+async function sendVerifications(user) {
+  const verificationToken = await user.getVerificationToken();
+  const phoneVerificationCode = await user.generatePhoneVerificationToken();
+  await user.save({ validateBeforeSave: false });
+  const verificationUrl = `${process.env.FRONTEND_URL}/verify-user/${verificationToken}`;
+  const emailMsg = {
+    to: user.email,
+    from: process.env.SENDGRID_FROM_EMAIL,
+    subject: "Verify Your Email Address",
+    html: createVerificationEmail(verificationUrl),
+  };
+  try {
+    await Promise.all([
+      // sgMail.send(emailMsg),
+      sendEmail({
+        email: user.email,
+        subject: "Email Verification",
+        message: createVerificationEmail(verificationUrl),
+      }),
+    ]);
+  } catch (error) {
+    console.error("Verification sending error:", error);
+    user.verificationToken = undefined;
+    user.verificationExpire = undefined;
+    user.phoneVerificationToken = undefined;
+    user.phoneVerificationExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+    throw error;
+  }
+}
 
 /**
  * @swagger
@@ -270,49 +207,90 @@ exports.login = async (req, res) => {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      return res.status(400).json({
+        success: false,
+        errors: errors.array().map((err) => ({
+          field: err.param,
+          message: err.msg,
+        })),
+      });
     }
 
-    const email= req.body.email.toLowerCase().trim();
-    const password = req.body.password.trim();
-    // Check if user exists
-    const user = await User.findOne({ email }).select("+password");
+    const { email, password } = req.body;
+
+    // Normalize and sanitize inputs
+    const normalizedEmail = email.toLowerCase().trim();
+    const sanitizedPassword = password.trim();
+
+    // Check if user exists with password
+    const user = await User.findOne({ email: normalizedEmail }).select("+password +isVerified +isPhoneVerified +phone");
+
     if (!user) {
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
-      });
-    }
-
-    // Check if email is verified
-    if (!user.isVerified) {
-      return res.status(401).json({
-        success: false,
-        message: "Please verify your email before logging in",
+        code: "INVALID_CREDENTIALS",
       });
     }
 
     // Check if password matches
-    const isMatch = await user.matchPassword(password);
+    const isMatch = await user.matchPassword(sanitizedPassword);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
+        code: "INVALID_CREDENTIALS",
       });
     }
 
-    // Generate JWT token
+    // Check verification status
+    if (!user.isVerified || !user.isPhoneVerified) {
+      const verificationData = {
+        email: user.email,
+        phone: user.phone,
+        isEmailVerified: user.isVerified,
+        isPhoneVerified: user.isPhoneVerified,
+        dialCode: user.dialCode,
+      };
+
+      // Generate and send verification codes if not verified
+      if (!user.isVerified) {
+        const verificationToken = await user.getVerificationToken();
+        await user.save({ validateBeforeSave: false });
+        const verificationUrl = `${process.env.FRONTEND_URL}/verify-user/${verificationToken}`;
+
+        sendEmail({
+          email: user.email,
+          subject: "Email Verification",
+          message: createVerificationEmail(verificationUrl),
+        }),
+          // In production, you would send the email here
+          console.log(`Email verification token: ${verificationToken}`);
+      }
+      return res.status(403).json({
+        success: false,
+        message: "Account verification required",
+        code: "VERIFICATION_REQUIRED",
+        verificationRequired: true,
+        verificationData,
+      });
+    }
     const token = user.getSignedJwtToken();
+    const userData = user.toObject();
+    delete userData.password;
 
     res.status(200).json({
       success: true,
       token,
+      user: userData,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Login error:", error);
     res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: "Internal server error",
+      code: "SERVER_ERROR",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -391,48 +369,170 @@ exports.getMe = async (req, res) => {
  *       500:
  *         description: Server error
  */
-exports.verifyEmail = async (req, res) => {
+
+exports.checkVerificationStatus = async (req, res) => {
   try {
-    // Get hashed token
-    const verificationToken = crypto
-      .createHash("sha256")
-      .update(req.params.verificationtoken)
-      .digest("hex");
-
-    console.log(verificationToken, "verification tokebn");
-
-    // Find user by verification token and check if token is still valid
-    const user = await User.findOne({
-      verificationToken,
-      verificationExpire: { $gt: Date.now() },
-    });
+    const user = await User.findById(req.user.id).select("isVerified isPhoneVerified");
 
     if (!user) {
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
-        message: "Invalid or expired verification token",
+        message: "User not found",
       });
     }
 
-    // Set user as verified
+    res.status(200).json({
+      success: true,
+      data: {
+        emailVerified: user.isVerified,
+        phoneVerified: user.isPhoneVerified,
+        fullyVerified: user.isVerified && user.isPhoneVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Verification status check error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error checking verification status",
+    });
+  }
+};
+
+exports.verifyEmail = async (req, res) => {
+  try {
+    let decoded;
+    try {
+      decoded = jwt.verify(req.params.verificationToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or tampered verification link",
+        code: "INVALID_JWT_TOKEN",
+      });
+    }
+    const { email, token: rawToken } = decoded;
+    console.log(rawToken);
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+        code: "USER_NOT_FOUND",
+      });
+    }
+
+    if (user.isVerified) {
+      return res.status(200).json({
+        success: true,
+        message: "Email already verified",
+        verificationData: {
+          emailVerified: true,
+          email: user.email,
+          phone: user.phone,
+          phoneVerified: user.isPhoneVerified,
+          dialCode: user.dialCode,
+        },
+      });
+    }
+    console.log(new Date(user.verificationExpire).getTime() < Date.now(), user.verificationToken !== hashedToken, !user.verificationExpire);
+    if (user.verificationToken !== hashedToken || !user.verificationExpire || new Date(user.verificationExpire).getTime() < Date.now()) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification token",
+        code: "INVALID_VERIFICATION_TOKEN",
+      });
+    }
+
+    // 5. Update verification status
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationExpire = undefined;
     await user.save();
-
-    // Generate JWT token
-    const token = user.getSignedJwtToken();
-
     res.status(200).json({
       success: true,
       message: "Email verified successfully",
-      token,
+      verificationData: {
+        emailVerified: true,
+        email: user.email,
+        phone: user.phone,
+        phoneVerified: user.isPhoneVerified,
+        dialCode: user.dialCode,
+      },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Email verification error:", error);
     res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: "Server error during email verification",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+exports.verifyPhone = async (req, res) => {
+  try {
+    const { code, phone, email } = req.body;
+
+    // Input validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+        message: "Validation failed",
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    if (!code || !phone || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Code, phone number, and email are required",
+        code: "MISSING_FIELDS",
+      });
+    }
+
+    // Lookup user
+    const user = await User.findOne({ phone, email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found with provided phone and email",
+        code: "USER_NOT_FOUND",
+      });
+    }
+
+    try {
+      // Await the verification method
+      await user.verifyPhoneToken(code);
+    } catch (verificationError) {
+      return res.status(400).json({
+        success: false,
+        message: verificationError.message || "Invalid verification code",
+        code: "INVALID_VERIFICATION_CODE",
+      });
+    }
+
+    // Generate JWT after successful verification
+    const token = user.getSignedJwtToken();
+
+    return res.status(200).json({
+      success: true,
+      message: "Phone number verified successfully",
+      token,
+      verificationStatus: {
+        emailVerified: user.isVerified,
+        phoneVerified: true,
+      },
+    });
+  } catch (error) {
+    console.error("Phone verification error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error during phone verification",
+      code: "SERVER_ERROR",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -475,98 +575,137 @@ exports.verifyEmail = async (req, res) => {
  */
 exports.resendVerification = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { type, email, phone } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    // Validate request
+    if (!type || (type === "email" && !email) || (type === "phone" && !phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields. Provide type and email/phone",
+      });
+    }
+
+    // Find user based on verification type
+    const user = await User.findOne(type === "email" ? { email } : { phone });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "No user found with that email",
+        message: `No user found with this ${type}`,
       });
     }
 
-    // Check if user is already verified
-    if (user.isVerified) {
+    // Check if already verified
+    if (type === "email" && user.isVerified) {
       return res.status(400).json({
         success: false,
         message: "Email is already verified",
       });
     }
 
-    // Generate verification token
-    const verificationToken = user.getVerificationToken();
-    await user.save({ validateBeforeSave: false });
-
-    // Create verification URL
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
-
-    // Create email message
-    const message = `
-                <div style="padding: 20px 0;">
-          <p>Hello,</p>
-          <p>Thank you for registering with us! To complete your registration, please verify your email address by clicking the button below:</p>
-          
-          <div style="text-align: center;">
-            <a href="${verificationUrl}" style="display: inline-block;
-          padding: 12px 24px;
-          background-color: #4f46e5;
-          color: white;
-          text-decoration: none;
-          border-radius: 6px;
-          font-weight: 600;
-          margin: 20px 0;
-          text-align: center;
-">Verify Email Address</a>
-          </div>
-          
-          <p>If the button above doesn't work, copy and paste this link into your browser:</p>
-          <div style="word-break: break-all;
-          background-color: #f8f9fa;
-          padding: 10px;
-          border-radius: 4px;
-          margin: 15px 0;
-          font-family: monospace;">${verificationUrl}</div>
-          
-          <p>This verification link will expire in 24 hours.</p>
-          <p>If you didn't create an account with us, please ignore this email.</p>
-        </div>
-        `;
-
-
-    try {
-      await sendEmail({
-        email: user.email,
-        subject: "Email Verification",
-        message,
+    if (type === "phone" && user.isPhoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone is already verified",
       });
+    }
+
+    // Generate and save appropriate token
+    let verificationData;
+    if (type === "email") {
+      const verificationToken = user.getVerificationToken();
+      await user.save({ validateBeforeSave: false });
+
+      const verificationUrl = `${process.env.FRONTEND_URL}/verify-user/${verificationToken}`;
+
+      verificationData = {
+        email: user.email,
+        subject: "Email Verification Resend",
+        message: createVerificationEmail(verificationUrl),
+      };
+    } else {
+      const verificationCode = await user.generatePhoneVerificationToken();
+      await user.save({ validateBeforeSave: false });
+
+      verificationData = {
+        phone: user.phone,
+        message: `Your verification code is: ${verificationCode}`,
+      };
+    }
+    // Send verification
+    try {
+      if (type === "email") {
+        await sendEmail({
+          email: verificationData.email,
+          subject: verificationData.subject,
+          message: verificationData.message,
+        });
+      } else {
+        twilio.messages.create({
+          body: verificationData.message,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: `${user.dialCode}${user.phone}`,
+        });
+      }
 
       res.status(200).json({
         success: true,
-        message: "Verification email sent",
+        message: `${type === "email" ? "Email" : "SMS"} verification sent`,
+        // Only return code in development for testing
+        code: process.env.NODE_ENV === "development" && type === "phone" ? verificationData.message.match(/\d{6}/)?.[0] : undefined,
       });
     } catch (err) {
-      console.error("Email error:", err);
+      console.error(`Error sending ${type} verification:`, err);
 
-      // If email fails, reset the verification token
-      user.verificationToken = undefined;
-      user.verificationExpire = undefined;
+      // Clean up tokens if sending fails
+      if (type === "email") {
+        user.verificationToken = undefined;
+        user.verificationExpire = undefined;
+      } else {
+        user.phoneVerificationToken = undefined;
+        user.phoneVerificationExpire = undefined;
+      }
       await user.save({ validateBeforeSave: false });
 
       return res.status(500).json({
         success: false,
-        message: "Email could not be sent",
+        message: `Failed to send ${type} verification`,
+        error: process.env.NODE_ENV === "development" ? err.message : undefined,
       });
     }
   } catch (error) {
-    console.error(error);
+    console.error("Resend verification error:", error);
     res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: "Server error during verification resend",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
+
+// Helper function for email template
+function createVerificationEmail(verificationUrl) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px 0;">
+      <h2 style="color: #4f46e5;">Email Verification</h2>
+      <p>Thank you for registering with us!</p>
+      <p>Please click the button below to verify your email address:</p>
+      <div style="text-align: center; margin: 20px 0;">
+        <a href="${verificationUrl}" 
+           style="display: inline-block; padding: 12px 24px; background-color: #4f46e5; 
+                  color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">
+          Verify Email Address
+        </a>
+      </div>
+      <p>Or copy this link to your browser:</p>
+      <div style="word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px; margin: 10px 0;">
+        ${verificationUrl}
+      </div>
+      <p>This link expires in 24 hours.</p>
+      <p>If you didn't request this, please ignore this email.</p>
+    </div>
+  `;
+}
 
 /**
  * @swagger
@@ -628,7 +767,7 @@ exports.forgotPassword = async (req, res) => {
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
     // Create email message
-const message = `
+    const message = `
   <div style="max-width: 600px; margin: auto; padding: 32px 24px; font-family: Arial, sans-serif; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;">
     <h2 style="color: #111827; font-size: 22px; font-weight: 700; margin-bottom: 16px;">Reset Your Password</h2>
 
@@ -669,14 +808,11 @@ const message = `
     <p style="font-size: 14px; color: #777777; margin-bottom: 8px;">
       This password reset link is valid for <strong>10 minutes</strong>.
     </p>
-
     <p style="font-size: 14px; color: #999999;">
       If you didn’t request a password reset, you can safely ignore this email.
     </p>
   </div>
 `;
-
-
 
     try {
       await sendEmail({
@@ -691,12 +827,10 @@ const message = `
       });
     } catch (err) {
       console.error("Email error:", err);
-
       // If email fails, reset the token and expiry
       user.resetPasswordToken = undefined;
       user.resetPasswordExpire = undefined;
       await user.save({ validateBeforeSave: false });
-
       return res.status(500).json({
         success: false,
         message: "Email could not be sent",
@@ -759,10 +893,7 @@ const message = `
 exports.resetPassword = async (req, res) => {
   try {
     // Get hashed token
-    const resetPasswordToken = crypto
-      .createHash("sha256")
-      .update(req.params.resettoken)
-      .digest("hex");
+    const resetPasswordToken = crypto.createHash("sha256").update(req.params.resettoken).digest("hex");
 
     // Find user by reset token and check if token is still valid
     const user = await User.findOne({
@@ -805,5 +936,65 @@ exports.resetPassword = async (req, res) => {
       success: false,
       message: "Server Error",
     });
+  }
+};
+
+module.exports.sendPhoneVerificationCode = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).json({ success: false, errors: errors.array() });
+  }
+
+  const { email, phone, dialCode } = req.body;
+
+  try {
+    // Find the user trying to verify
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Check if their email is verified
+    if (!user.isVerified) {
+      return res.status(400).json({ success: false, message: "Email is not verified" });
+    }
+
+    // Check if the phone number is already verified for another account
+    const otherUser = await User.findOne({
+      phone: phone,
+      dialCode: dialCode,
+      isPhoneVerified: true,
+      email: { $ne: email },
+    });
+
+    if (otherUser) {
+      return res.status(409).json({ success: false, message: "Phone number already in use by another verified account" });
+    }
+
+    // If current user's phone is already verified
+    if (user.isPhoneVerified) {
+      return res.status(200).json({ success: true, message: "Phone already verified" });
+    }
+
+    // If phone is new or changed, update it
+    if (user.phone !== phone) {
+      user.phone = phone;
+      user.isPhoneVerified = false;
+      await user.save();
+    }
+    const phoneVerificationCode = user.generatePhoneVerificationToken();
+    console.log(phoneVerificationCode);
+    const smsMessage = `Your avallonya verification code is: ${phoneVerificationCode}`;
+    // Send SMS via Twilio
+    await twilio.messages.create({
+      body: smsMessage,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: `${user.dialCode}${user.phone}`,
+    });
+    await user.save({ validateBeforeSave: false });
+    return res.status(200).json({ success: true, message: "Verification code sent to phone" });
+  } catch (error) {
+    console.error("Error sending verification code:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };

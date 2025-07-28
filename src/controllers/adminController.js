@@ -179,8 +179,8 @@ exports.getNewCategoriesFromAPIAdmin = async (req, res) => {
         categoryName: item.name,
         slug: item.slug,
         qid: item.qid,
-        weightCost: 1.25,
-        priceCost: 1.25,
+        weightCost: 1,
+        priceCost: 1,
       }));
 
     if (searchQuery) {
