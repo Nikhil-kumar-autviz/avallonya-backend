@@ -71,7 +71,7 @@ const userSchema = new mongoose.Schema({
       required: [true, "Please add a registration number"],
     },
   },
-  // Business details
+  
   businessDetails: {
     salesChannels: [
       {
