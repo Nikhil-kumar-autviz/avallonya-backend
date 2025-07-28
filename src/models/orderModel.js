@@ -29,15 +29,15 @@ const orderItemSchema = new mongoose.Schema({
   }
 }, { strict: false });
 
-// Address snapshot schema for historical record
+
 const addressSnapshotSchema = new mongoose.Schema({
-  // Reference to the original address (if still exists)
+  
   addressId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Address",
     default: null,
   },
-  // Snapshot of address data at time of order
+
   firstName: {
     type: String,
     required: [true, "First name is required"],

@@ -10,10 +10,6 @@ const {
   handleChargeSucceeded,
 } = require("../services/webhookServices");
 const stripe = require("../utils/stripe");
-
-
-
-// Stripe requires the raw body to validate signature
 module.exports.stripePaymentStatusCheckController = async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
