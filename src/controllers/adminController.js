@@ -3,14 +3,11 @@ const Order = require("../models/orderModel");
 const { makeAuthenticatedRequest } = require("../services/qogitaService");
 const { processOrderCore } = require("../services/adminServices");
 const logger = require("../utils/logger");
-const {
-  orderCancellationEmail,
-  orderDispatchEmail,
-  orderDeliveredEmail,
-} = require("../template/orders.template");
+const { orderCancellationEmail, orderDispatchEmail, orderDeliveredEmail } = require("../template/orders.template");
 const Admin = require("../models/adminModel");
 const qogitaTokenModel = require("../models/qogitaTokenModel");
 const User = require("../models/userModel");
+const Content = require("../models/cmsModel");
 
 // exports.getAllCategoriesForAdmin = async (req, res) => {
 //   try {
@@ -63,18 +60,14 @@ module.exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ error: "Email and password are required." });
+      return res.status(400).json({ error: "Email and password are required." });
     }
     const admin = await Admin.findByCredentials(email, password);
     if (!admin) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
     const token = admin.generateAuthToken();
-    const qogitaAdminDetails = await qogitaTokenModel
-      .findOne({ "user.email": email })
-      .sort({ _id: -1 });
+    const qogitaAdminDetails = await qogitaTokenModel.findOne({ "user.email": email }).sort({ _id: -1 });
     res.status(200).json({
       user: qogitaAdminDetails?.user,
       role: admin.role,
@@ -88,17 +81,14 @@ module.exports.adminLogin = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;     
-    const limit = parseInt(req.query.limit) || 10; 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const totalUsers = await User.countDocuments(); 
+    const totalUsers = await User.countDocuments();
     const totalPages = Math.ceil(totalUsers / limit);
 
-    const users = await User.find({}, "-password -__v")
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
+    const users = await User.find({}, "-password -__v").skip(skip).limit(limit).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -108,9 +98,8 @@ exports.getAllUsers = async (req, res) => {
       totalPages,
       users,
     });
-  } catch (err) {
-    
-    res.status(500).json({ success: false, message: "Server error",error:error?.message });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error?.message });
   }
 };
 
@@ -124,10 +113,7 @@ exports.getCategoriesFromDBAdmin = async (req, res) => {
     const searchRegex = new RegExp(searchQuery, "i");
 
     const query = {
-      $or: [
-        { categoryName: { $regex: searchRegex } },
-        { slug: { $regex: searchRegex } },
-      ],
+      $or: [{ categoryName: { $regex: searchRegex } }, { slug: { $regex: searchRegex } }],
     };
 
     const [paginatedCategories, totalCount] = await Promise.all([
@@ -184,11 +170,7 @@ exports.getNewCategoriesFromAPIAdmin = async (req, res) => {
       }));
 
     if (searchQuery) {
-      newCategories = newCategories.filter(
-        (item) =>
-          item.categoryName.toLowerCase().includes(searchQuery) ||
-          item.slug.toLowerCase().includes(searchQuery)
-      );
+      newCategories = newCategories.filter((item) => item.categoryName.toLowerCase().includes(searchQuery) || item.slug.toLowerCase().includes(searchQuery));
     }
 
     const paginatedResults = newCategories.slice(skip, skip + limit);
@@ -212,15 +194,11 @@ exports.updateCategoryByQid = async (req, res) => {
     const { qid } = req.params;
     const updateData = req.body;
 
-    const updatedCategory = await Category.findOneAndUpdate(
-      { qid },
-      updateData,
-      {
-        new: true,
-        upsert: true,
-        setDefaultsOnInsert: true,
-      }
-    );
+    const updatedCategory = await Category.findOneAndUpdate({ qid }, updateData, {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    });
 
     res.status(200).json({
       success: true,
@@ -321,18 +299,13 @@ module.exports.cancelOrder = async (req, res) => {
     }
 
     // Restrict cancellation if  accepted, dispatched, or completed
-    if (
-      ["accepted", "dispatched", "delivered"].includes(existingOrder.status)
-    ) {
-      return res
-        .status(400)
-        .json({ error: "Cannot cancel this order at its current stage." });
+    if (["accepted", "dispatched", "delivered"].includes(existingOrder.status)) {
+      return res.status(400).json({ error: "Cannot cancel this order at its current stage." });
     }
 
     existingOrder.status = "cancelled";
     existingOrder.cancelledAt = new Date();
-    existingOrder.adminNotes =
-      (existingOrder.adminNotes || "") + " Cancelled by admin.";
+    existingOrder.adminNotes = (existingOrder.adminNotes || "") + " Cancelled by admin.";
 
     await existingOrder.save();
     orderCancellationEmail(existingOrder);
@@ -399,9 +372,7 @@ module.exports.dispatchOrder = async (req, res) => {
     }
 
     if (order.status === "delivered") {
-      return res
-        .status(400)
-        .json({ error: "Cannot dispatch a completed order." });
+      return res.status(400).json({ error: "Cannot dispatch a completed order." });
     }
 
     if (order.status === "dispatched") {
@@ -424,5 +395,37 @@ module.exports.dispatchOrder = async (req, res) => {
       error: "Internal server error",
       message: error.message,
     });
+  }
+};
+
+module.exports.getAllDynamicContent = async (req, res) => {
+  try {
+    const content = await Content.find();
+    res.json(content);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+module.exports.updateDynamicContent = async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+
+    const updatedContent = await Content.findOneAndUpdate({ key }, { value, lastUpdated: Date.now() }, { new: true, upsert: true });
+
+    res.status(200).json(updatedContent);
+  } catch (err) {
+    res.status(500).json({ error: "Update failed" });
+  }
+};
+
+module.exports.getSingleDynamicContent = async (req, res) => {
+  try {
+    const { key } = req.params;
+    const content = await Content.findOne({ key });
+    res.status(200).json(content ? content.value : null);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
 };

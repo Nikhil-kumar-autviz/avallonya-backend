@@ -308,7 +308,7 @@ exports.getProductByGtin = async (gtin) => {
     const matchedCategory = matchedCategories[0];
 
     const mass = parseFloat(response.dimensions?.mass) || 0;
-    const minCut = 25; // your cut in percent
+    const minCut = 20; // your cut in percent
 
     let minOfferPrice = Infinity;
 

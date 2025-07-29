@@ -142,7 +142,8 @@ const updateProfile = async (req, res) => {
       });
     }
 
-    if (phone && !/^\+?[\d\s\-\(\)]+$/.test(phone)) {
+    
+    if (phone && !/^\+?[\d\s\-()]+$/.test(phone)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid phone number format'
