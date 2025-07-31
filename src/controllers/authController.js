@@ -2,12 +2,12 @@ const User = require("../models/userModel");
 const { validationResult, body } = require("express-validator");
 const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
-const sgMail = require("@sendgrid/mail");
+const sgMail=require("../utils/sendgridEmail");
 const jwt = require("jsonwebtoken");
 const twilio = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 // Set SendGrid API key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
 
 /**
  * @swagger
@@ -141,12 +141,12 @@ async function sendVerifications(user) {
   };
   try {
     await Promise.all([
-      // sgMail.send(emailMsg),
-      sendEmail({
-        email: user.email,
-        subject: "Email Verification",
-        message: createVerificationEmail(verificationUrl),
-      }),
+      sgMail.send(emailMsg)
+      // sendEmail({
+      //   email: user.email,
+      //   subject: "Email Verification",
+      //   message: createVerificationEmail(verificationUrl),
+      // }),
     ]);
   } catch (error) {
     console.error("Verification sending error:", error);
@@ -258,12 +258,18 @@ exports.login = async (req, res) => {
         const verificationToken = await user.getVerificationToken();
         await user.save({ validateBeforeSave: false });
         const verificationUrl = `${process.env.FRONTEND_URL}/verify-user/${verificationToken}`;
-
-        sendEmail({
-          email: user.email,
-          subject: "Email Verification",
-          message: createVerificationEmail(verificationUrl),
-        }),
+ const emailMsg = {
+    to: user.email,
+    from: process.env.SENDGRID_FROM_EMAIL,
+    subject: "Verify Your Email Address",
+    html:  createVerificationEmail(verificationUrl)
+  };
+  await sgMail.send(emailMsg)
+        // sendEmail({
+        //   email: user.email,
+        //   subject: "Email Verification",
+        //   message: createVerificationEmail(verificationUrl),
+        // }),
           // In production, you would send the email here
           console.log(`Email verification token: ${verificationToken}`);
       }
@@ -814,12 +820,19 @@ exports.forgotPassword = async (req, res) => {
   </div>
 `;
 
+ const emailMsg = {
+    to: user.email,
+    from: process.env.SENDGRID_FROM_EMAIL,
+    subject: "Verify Your Email Address",
+    html: message
+  };
     try {
-      await sendEmail({
-        email: user.email,
-        subject: "Password Reset Request",
-        message,
-      });
+       await sgMail.send(emailMsg)
+      // await sendEmail({
+      //   email: user.email,
+      //   subject: "Password Reset Request",
+      //   message,
+      // });
 
       res.status(200).json({
         success: true,

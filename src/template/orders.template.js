@@ -1,5 +1,5 @@
 const sendEmail = require("../utils/sendEmail");
-
+const sgMail=require("../utils/sendgridEmail")
 module.exports.orderCancellationEmail = (orderData) => {
   const frontendUrl = process.env.FRONTEND_URL;
 
@@ -86,12 +86,20 @@ module.exports.orderCancellationEmail = (orderData) => {
   </div>
 </div>
   `;
-
-  sendEmail({
-    email: orderData.shippingAddress.email,
+ const emailMsg = {
+    to: orderData.shippingAddress.email,
+    from: process.env.SENDGRID_FROM_EMAIL,
     subject: `Cancellation Confirmation for Order #${orderData.orderNumber}`,
-    message: message,
-  });
+    html: message
+  };
+
+
+ sgMail.send(emailMsg)
+  // sendEmail({
+  //   email: orderData.shippingAddress.email,
+  //   subject:`Cancellation Confirmation for Order #${orderData.orderNumber}` ,
+  //   message: message,
+  // });
 };
 
 module.exports.orderDispatchEmail = (orderData) => {
@@ -187,12 +195,20 @@ module.exports.orderDispatchEmail = (orderData) => {
 </div>
   `;
 console.log(orderData.shippingAddress.email)
+ const emailMsg = {
+    to: orderData.shippingAddress.email,
+    from: process.env.SENDGRID_FROM_EMAIL,
+    subject:  `Your Order #${orderData.orderNumber} Has Been Dispatched!`,
+    html: message
+  };
 
-  sendEmail({
-    email: orderData.shippingAddress.email,
-    subject: `Your Order #${orderData.orderNumber} Has Been Dispatched!`,
-    message: message,
-  });
+
+ sgMail.send(emailMsg)
+  // sendEmail({
+  //   email: orderData.shippingAddress.email,
+  //   subject: `Your Order #${orderData.orderNumber} Has Been Dispatched!`,
+  //   message: message,
+  // });
 };
 
 module.exports.orderDeliveredEmail = (orderData) => {
@@ -272,11 +288,11 @@ module.exports.orderDeliveredEmail = (orderData) => {
       ${orderData.shippingAddress.countryRegion}
     </p>
     
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="${frontendUrl}/order-feedback?orderId=${orderData._id}" style="display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
-        Leave Feedback
-      </a>
-    </div>
+    // <div style="text-align: center; margin: 30px 0;">
+    //   <a href="${frontendUrl}/order-feedback?orderId=${orderData._id}" style="display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
+    //     Leave Feedback
+    //   </a>
+    // </div>
     
     <p>We hope you're satisfied with your purchase. If you have any issues, please contact our support team within 14 days of delivery.</p>
     <p>Thank you for shopping with us!</p>
@@ -288,9 +304,17 @@ module.exports.orderDeliveredEmail = (orderData) => {
 </div>
   `;
 console.log(orderData.shippingAddress.email)
-  sendEmail({
-    email: orderData.shippingAddress.email,
+ const emailMsg = {
+    to: orderData.shippingAddress.email,
+    from: process.env.SENDGRID_FROM_EMAIL,
     subject: `Your Order #${orderData.orderNumber} Has Been Delivered!`,
-    message: message,
-  });
+    html: message
+  };
+  sgMail.send(emailMsg);
+
+//   sendEmail({
+//     email: orderData.shippingAddress.email,
+//     subject: `Your Order #${orderData.orderNumber} Has Been Delivered!`,
+//     message: message,
+//   });
 };

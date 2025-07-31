@@ -2,8 +2,8 @@ const Cart = require("../models/cartModel");
 const Order = require("../models/orderModel");
 const sendEmail = require("../utils/sendEmail");
 const { qogitaApi, getValidAccessToken } = require("./qogitaService");
-
-const orderConfirmationEmail = (orderData) => {
+const sgMail=require("../utils/sendgridEmail");
+const orderConfirmationEmail = async(orderData) => {
   const frontendUrl = process.env.FRONTEND_URL;
 
   const message = `
@@ -124,12 +124,18 @@ const orderConfirmationEmail = (orderData) => {
   </div>
 </div>
   `;
-
-  sendEmail({
-    email: orderData.shippingAddress.email,
+ const emailMsg = {
+    to:orderData.shippingAddress.email,
+    from: process.env.SENDGRID_FROM_EMAIL,
     subject: "Order Confirmation Email",
-    message: message,
-  });
+    html: message
+  };
+  await sgMail.send(emailMsg)
+  // sendEmail({
+  //   email: orderData.shippingAddress.email,
+  //   subject: "Order Confirmation Email",
+  //   message: message,
+  // });
 };
 
 async function processCartItems(items, apiHeaders, orderId) {
