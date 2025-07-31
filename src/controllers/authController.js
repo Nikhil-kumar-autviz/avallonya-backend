@@ -2,12 +2,11 @@ const User = require("../models/userModel");
 const { validationResult, body } = require("express-validator");
 const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
-const sgMail=require("../utils/sendgridEmail");
+const sgMail = require("../utils/sendgridEmail");
 const jwt = require("jsonwebtoken");
 const twilio = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 // Set SendGrid API key
-
 
 /**
  * @swagger
@@ -141,7 +140,7 @@ async function sendVerifications(user) {
   };
   try {
     await Promise.all([
-      sgMail.send(emailMsg)
+      sgMail.send(emailMsg),
       // sendEmail({
       //   email: user.email,
       //   subject: "Email Verification",
@@ -258,20 +257,20 @@ exports.login = async (req, res) => {
         const verificationToken = await user.getVerificationToken();
         await user.save({ validateBeforeSave: false });
         const verificationUrl = `${process.env.FRONTEND_URL}/verify-user/${verificationToken}`;
- const emailMsg = {
-    to: user.email,
-    from: process.env.SENDGRID_FROM_EMAIL,
-    subject: "Verify Your Email Address",
-    html:  createVerificationEmail(verificationUrl)
-  };
-  await sgMail.send(emailMsg)
+        const emailMsg = {
+          to: user.email,
+          from: process.env.SENDGRID_FROM_EMAIL,
+          subject: "Verify Your Email Address",
+          html: createVerificationEmail(verificationUrl),
+        };
+        await sgMail.send(emailMsg);
         // sendEmail({
         //   email: user.email,
         //   subject: "Email Verification",
         //   message: createVerificationEmail(verificationUrl),
         // }),
-          // In production, you would send the email here
-          console.log(`Email verification token: ${verificationToken}`);
+        // In production, you would send the email here
+        console.log(`Email verification token: ${verificationToken}`);
       }
       return res.status(403).json({
         success: false,
@@ -641,11 +640,20 @@ exports.resendVerification = async (req, res) => {
     // Send verification
     try {
       if (type === "email") {
-        await sendEmail({
-          email: verificationData.email,
+        const emailMsg = {
+          to: verificationData.email,
+          from: process.env.SENDGRID_FROM_EMAIL,
           subject: verificationData.subject,
-          message: verificationData.message,
-        });
+          html: verificationData.message,
+        };
+
+        sgMail.send(emailMsg);
+
+        // await sendEmail({
+        //   email: verificationData.email,
+        //   subject: verificationData.subject,
+        //   message: verificationData.message,
+        // });
       } else {
         twilio.messages.create({
           body: verificationData.message,
@@ -820,14 +828,14 @@ exports.forgotPassword = async (req, res) => {
   </div>
 `;
 
- const emailMsg = {
-    to: user.email,
-    from: process.env.SENDGRID_FROM_EMAIL,
-    subject: "Verify Your Email Address",
-    html: message
-  };
+    const emailMsg = {
+      to: user.email,
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: "Verify Your Email Address",
+      html: message,
+    };
     try {
-       await sgMail.send(emailMsg)
+      await sgMail.send(emailMsg);
       // await sendEmail({
       //   email: user.email,
       //   subject: "Password Reset Request",
