@@ -407,16 +407,90 @@ module.exports.getAllDynamicContent = async (req, res) => {
   }
 };
 
+
 module.exports.updateDynamicContent = async (req, res) => {
   try {
-    const { key } = req.params;
-    const { value } = req.body;
+    // Validate request body
+    const { key, value } = req.body;
+    
+    if (!key || typeof key !== 'string') {
+      return res.status(400).json({ 
+        error: "Invalid request",
+        message: "Key is required and must be a string" 
+      });
+    }
 
-    const updatedContent = await Content.findOneAndUpdate({ key }, { value, lastUpdated: Date.now() }, { new: true, upsert: true });
+    if (value === undefined || value === null) {
+      return res.status(400).json({ 
+        error: "Invalid request",
+        message: "Value is required" 
+      });
+    }
 
-    res.status(200).json(updatedContent);
+    // Additional validation based on your content requirements
+    if (typeof value === 'string' && value.length > 10000) {
+      return res.status(400).json({ 
+        error: "Invalid request",
+        message: "String value exceeds maximum length" 
+      });
+    }
+
+    // Prevent prototype pollution
+    if (key.includes('__proto__') || key.includes('constructor')) {
+      return res.status(400).json({ 
+        error: "Invalid request",
+        message: "Invalid key format" 
+      });
+    }
+
+    // Update or create the content
+    const updatedContent = await Content.findOneAndUpdate(
+      { key },
+      { 
+        value,
+        lastUpdated: Date.now(),
+        updatedBy: req.user?.id || 'system' // Track who made the change if you have auth
+      },
+      { 
+        new: true,
+        upsert: true,
+        runValidators: true // Ensure model validations are run
+      }
+    );
+
+    // Log the update (optional)
+    console.log(`Content updated - Key: ${key}, UpdatedBy: ${req.user?.id || 'system'}`);
+
+    res.status(200).json({
+      success: true,
+      data: updatedContent,
+      message: "Content updated successfully"
+    });
+
   } catch (err) {
-    res.status(500).json({ error: "Update failed" });
+    console.error('Error updating content:', err);
+    
+    // Handle specific MongoDB errors
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ 
+        error: "Validation failed",
+        message: err.message,
+        details: err.errors 
+      });
+    }
+
+    if (err.code === 11000) {
+      return res.status(400).json({ 
+        error: "Duplicate key",
+        message: "A content item with this key already exists" 
+      });
+    }
+
+    res.status(500).json({ 
+      error: "Internal server error",
+      message: "Failed to update content",
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 

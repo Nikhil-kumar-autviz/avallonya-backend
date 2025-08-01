@@ -27,9 +27,9 @@ router.post(
 router.put("/cancel-customer-order",isAdmin, adminController.cancelOrder);
 router.put("/dispatch-customer-order/:orderId",isAdmin, adminController.dispatchOrder);
 router.put("/complete-customer-order/:orderId",isAdmin, adminController.completeOrder);
-router.get("/get-all-dynamic-content",isAdmin,adminController.getAllDynamicContent);
-router.get("/get-single-dynamic-content/:key",isAdmin,adminController.getSingleDynamicContent);
-router.get("/update-dynamic-content",isAdmin,adminController.updateDynamicContent);
+router.get("/get-all-dynamic-content",adminController.getAllDynamicContent);
+
+router.put("/update-dynamic-content",isAdmin,adminController.updateDynamicContent);
 
 
 
